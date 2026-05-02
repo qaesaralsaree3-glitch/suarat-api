@@ -1,6 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const client = new Anthropic();
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -18,23 +18,32 @@ export default async function handler(req, res) {
   try {
     const { image, text } = req.body;
 
-    const content = [];
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+    const prompt = text || "حلل هذا الطعام واذكر السعرات الحرارية والبروتين والكربوهيدرات والدهون. أرجع النتيجة بصيغة JSON فقط بهذا الشكل بدون أي نص إضافي: {\"name\":\"اسم الطعام\",\"calories\":number,\"protein\":number,\"carbs\":number,\"fat\":number}";
+
+    const parts = [{ text: prompt }];
 
     if (image) {
-      content.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: "image/jpeg",
+      parts.push({
+        inlineData: {
+          mimeType: "image/jpeg",
           data: image.replace(/^data:image\/\w+;base64,/, "")
         }
       });
     }
 
-    content.push({
-      type: "text",
-      text: text || "حلل هذا الطعام واذكر السعرات الحرارية والبروتين والكربوهيدرات والدهون. أرجع النتيجة بصيغة JSON فقط بهذا الشكل: {\"name\":\"اسم الطعام\",\"calories\":number,\"protein\":number,\"carbs\":number,\"fat\":number}"
-    });
+    const result = await model.generateContent(parts);
+    const responseText = result.response.text();
+    
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { raw: responseText };
+
+    return res.status(200).json(parsed);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}    });
 
     const message = await client.messages.create({
       model: "claude-sonnet-4-20250514",
