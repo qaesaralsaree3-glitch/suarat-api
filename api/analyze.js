@@ -19,7 +19,28 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "API key not configured" });
     }
 
-    const prompt = text || "حلل هذا الطعام واذكر السعرات الحرارية والبروتين والكربوهيدرات والدهون. أرجع النتيجة بصيغة JSON فقط بهذا الشكل بدون أي نص إضافي: {\"name\":\"اسم الطعام\",\"calories\":number,\"protein\":number,\"carbs\":number,\"fat\":number}";
+    const prompt = text || `أنت خبير تغذية. حلل هذا الطعام في الصورة وأرجع النتيجة بصيغة JSON صالحة فقط بدون أي نص إضافي أو علامات markdown. الشكل المطلوب:
+{
+  "dish_name": "اسم الطبق بالعربية",
+  "confidence": "عالية",
+  "items": [
+    {
+      "name": "اسم المكون بالعربية",
+      "amount_g": 100,
+      "calories": 50,
+      "protein": 1,
+      "carbs": 12,
+      "fat": 0
+    }
+  ]
+}
+
+ملاحظات مهمة:
+- confidence: استخدم فقط "عالية" أو "متوسطة" أو "منخفضة"
+- amount_g: الكمية بالجرام كرقم
+- جميع القيم الغذائية أرقام (لا نصوص)
+- اذكر كل مكون رئيسي مرئي في الصورة منفصلاً
+- أرجع JSON فقط`;
 
     const parts = [{ text: prompt }];
 
@@ -50,7 +71,11 @@ export default async function handler(req, res) {
 
     const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { raw: responseText };
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+
+    if (!parsed || !parsed.items) {
+      return res.status(500).json({ error: "تعذر تحليل الطعام، حاول بصورة أوضح" });
+    }
 
     return res.status(200).json(parsed);
   } catch (error) {
