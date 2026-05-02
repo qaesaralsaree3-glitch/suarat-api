@@ -1,7 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -17,8 +13,11 @@ export default async function handler(req, res) {
 
   try {
     const { image, text } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    if (!apiKey) {
+      return res.status(500).json({ error: "API key not configured" });
+    }
 
     const prompt = text || "حلل هذا الطعام واذكر السعرات الحرارية والبروتين والكربوهيدرات والدهون. أرجع النتيجة بصيغة JSON فقط بهذا الشكل بدون أي نص إضافي: {\"name\":\"اسم الطعام\",\"calories\":number,\"protein\":number,\"carbs\":number,\"fat\":number}";
 
@@ -26,36 +25,34 @@ export default async function handler(req, res) {
 
     if (image) {
       parts.push({
-        inlineData: {
-          mimeType: "image/jpeg",
+        inline_data: {
+          mime_type: "image/jpeg",
           data: image.replace(/^data:image\/\w+;base64,/, "")
         }
       });
     }
 
-    const result = await model.generateContent(parts);
-    const responseText = result.response.text();
-    
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: parts }]
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(500).json({ error: data.error?.message || "Gemini API error" });
+    }
+
+    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { raw: responseText };
 
     return res.status(200).json(parsed);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-}    });
-
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      messages: [{ role: "user", content }]
-    });
-
-    const responseText = message.content[0].text;
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { raw: responseText };
-
-    return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
