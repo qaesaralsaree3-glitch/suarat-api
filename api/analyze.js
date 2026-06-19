@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { image, text } = req.body;
+    const { image, text, mediaType } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -47,13 +47,13 @@ export default async function handler(req, res) {
     if (image) {
       parts.push({
         inline_data: {
-          mime_type: "image/jpeg",
+          mime_type: mediaType || "image/jpeg",
           data: image.replace(/^data:image\/\w+;base64,/, "")
         }
       });
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: "POST",
